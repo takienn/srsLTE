@@ -539,6 +539,18 @@ void srslte_tdec_sse_iteration(srslte_tdec_sse_t * h, int16_t * input, uint32_t 
     uint16_t *inter   = h->interleaver[h->current_cbidx].forward;
     uint16_t *deinter = h->interleaver[h->current_cbidx].reverse;
     
+    printf("cbidx=%d\n", h->current_cbidx);
+    printf("inter=[%d",inter[0]);
+    for (int i=1;i<long_cb;i++) {
+      printf(",%d",inter[i]);
+    }
+    printf("];\n");
+    printf("deinter=[%d",deinter[0]);
+    for (int i=1;i<long_cb;i++) {
+      printf(",%d",deinter[i]);
+    }
+    printf("];\n");
+    
     if (h->n_iter == 0) {
       deinterleave_input(h, input, long_cb);
     }
@@ -585,6 +597,7 @@ int srslte_tdec_sse_reset(srslte_tdec_sse_t * h, uint32_t long_cb)
   }
   h->n_iter = 0; 
   h->current_cbidx = srslte_cbsegm_cbindex(long_cb);
+  
   if (h->current_cbidx < 0) {
     fprintf(stderr, "Invalid CB length %d\n", long_cb);
     return -1; 
