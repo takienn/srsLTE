@@ -288,6 +288,18 @@ void srslte_tdec_gen_iteration(srslte_tdec_gen_t * h, float * input, uint32_t lo
     uint16_t *inter = h->interleaver[h->current_cbidx].forward;
     uint16_t *deinter = h->interleaver[h->current_cbidx].reverse;
     
+    printf("cbidx=%d\n", h->current_cbidx);
+    printf("inter=[%d",inter[0]);
+    for (int i=1;i<long_cb;i++) {
+      printf(",%d",inter[i]);
+    }
+    printf("];\n");
+    printf("deinter=[%d",deinter[0]);
+    for (int i=1;i<long_cb;i++) {
+      printf(",%d",deinter[i]);
+    }
+    printf("];\n");
+    
     // Prepare systematic and parity bits for MAP DEC #1
     for (i = 0; i < long_cb; i++) {
       h->syst[i] = input[SRSLTE_TCOD_RATE * i] + h->w[i];
