@@ -34,8 +34,14 @@
 #include <semaphore.h>
 #include <signal.h>
 
+#include <time.h>
+#include <sched.h>
+
 #include "srslte/srslte.h"
 
+//#include <glib.h>
+//#include <gtk/gtk.h>
+//#include <gtk/gtkscale.h>
 
 #define UE_CRNTI 0x1234
 
@@ -54,6 +60,11 @@ char *output_file_name = NULL;
 #define UP_KEY    65
 #define DOWN_KEY  66
 
+
+#define MY_PRIORITY (99) /* we use 49 as the PRREMPT_RT use 50
+                            as the priority of kernel tasklets
+                            and interrupt handler by default */
+
 srslte_cell_t cell = {
   25,            // nof_prb
   1,            // nof_ports
@@ -68,19 +79,23 @@ int net_port = -1; // -1 generates random dataThat means there is some problem s
 
 uint32_t cfi=3;
 uint32_t mcs_idx = 1, last_mcs_idx = 1;
+int sfMode = -1;
 int nof_frames = -1;
 
 char *rf_args = "";
 float rf_amp = 0.8, rf_gain = 70.0, rf_freq = 2400000000;
 
-bool null_file_sink=false; 
+//int absPattern[40] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+int absPattern[10] = {0,0,0,0,0,0,0,0,0,0};
+
+bool null_file_sink=false;
 srslte_filesink_t fsink;
 srslte_ofdm_t ifft;
 srslte_pbch_t pbch;
 srslte_pcfich_t pcfich;
 srslte_pdcch_t pdcch;
 srslte_pdsch_t pdsch;
-srslte_pdsch_cfg_t pdsch_cfg; 
+srslte_pdsch_cfg_t pdsch_cfg;
 srslte_softbuffer_tx_t softbuffer; 
 srslte_regs_t regs;
 srslte_ra_dl_dci_t ra_dl;  
@@ -89,7 +104,11 @@ cf_t *sf_buffer = NULL, *output_buffer = NULL;
 int sf_n_re, sf_n_samples;
 
 pthread_t net_thread; 
+pthread_t input_thread;
+
 void *net_thread_fnc(void *arg);
+void *input_thread_fnc(void *arg);
+
 sem_t net_sem;
 bool net_packet_ready = false; 
 srslte_netsource_t net_source; 
@@ -115,12 +134,22 @@ void usage(char *prog) {
   printf("\t-c cell id [Default %d]\n", cell.id);
   printf("\t-p nof_prb [Default %d]\n", cell.nof_prb);
   printf("\t-u listen TCP port for input data (-1 is random) [Default %d]\n", net_port);
+  printf("\t-d specify a duty cycle patter in 40bits");
   printf("\t-v [set srslte_verbose to debug, default none]\n");
+}
+
+int digit_to_int(char d)
+{
+ char str[2];
+
+ str[0] = d;
+ str[1] = '\0';
+ return (int) strtol(str, NULL, 10);
 }
 
 void parse_args(int argc, char **argv) {
   int opt;
-  while ((opt = getopt(argc, argv, "aglfmoncpvu")) != -1) {
+  while ((opt = getopt(argc, argv, "aglfomunpcvbz")) != -1) {
     switch (opt) {
     case 'a':
       rf_args = argv[optind];
@@ -155,6 +184,23 @@ void parse_args(int argc, char **argv) {
     case 'v':
       srslte_verbose++;
       break;
+    case 'b': {
+//      char pattern[40];
+//      strncpy(pattern, argv[optind], 40);
+      char pattern[10];
+      strncpy(pattern, argv[optind], 10);
+
+      for (int i =0; i<10; ++i) {
+	  absPattern[i] = digit_to_int(pattern[i]);
+      }
+      break;
+    }
+
+    case 'z':{
+      sfMode = atoi(argv[optind]);
+      break;
+    }
+
     default:
       usage(argv[0]);
       exit(-1);
@@ -184,7 +230,7 @@ void base_init() {
   /* open file or USRP */
   if (output_file_name) {
     if (strcmp(output_file_name, "NULL")) {
-      if (srslte_filesink_init(&fsink, output_file_name, SRSLTE_COMPLEX_FLOAT_BIN)) {
+      if (srslte_filesink_init(&fsink, output_file_name, SRSLTE_COMPLEX_FLOAT)) {
         fprintf(stderr, "Error opening file %s\n", output_file_name);
         exit(-1);
       }      
@@ -450,6 +496,15 @@ void *net_thread_fnc(void *arg) {
   return NULL;
 }
 
+void *input_thread_fnc (void *arg)
+{
+  //GtkWidget *window, *box;
+  //gtk_init (0, 0);
+  //window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+  //gtk_window_set_title (GTK_WINDOW (window), "LTE parameters");
+
+}
+
 int main(int argc, char **argv) {
   int nf=0, sf_idx=0, N_id_2=0;
   cf_t pss_signal[SRSLTE_PSS_LEN];
@@ -472,6 +527,19 @@ int main(int argc, char **argv) {
 #endif
 
   parse_args(argc, argv);
+
+
+  struct timespec t;
+  struct sched_param param;
+  int interval = 50000; /* 50us*/
+
+  /* Declare ourself as a real time task */
+
+  param.sched_priority = MY_PRIORITY;
+  if(sched_setscheduler(0, SCHED_FIFO, &param) == -1) {
+          perror("sched_setscheduler failed");
+          exit(-1);
+  }
 
   N_id_2 = cell.id % 3;
   sf_n_re = 2 * SRSLTE_CP_NORM_NSYMB * cell.nof_prb * SRSLTE_NRE;
@@ -547,6 +615,10 @@ int main(int argc, char **argv) {
     }
   }
   
+  if (pthread_create(&input_thread, NULL, input_thread_fnc, NULL)) {
+      perror("pthread_create");
+      exit(-1);
+  }
   /* Initiate valid DCI locations */
   for (i=0;i<SRSLTE_NSUBFRAMES_X_FRAME;i++) {
     srslte_pdcch_ue_locations(&pdcch, locations[i], 30, i, cfi, UE_CRNTI);
@@ -561,9 +633,10 @@ int main(int argc, char **argv) {
 #ifndef DISABLE_RF
   bool start_of_burst = true; 
 #endif
-  
+
+
   while ((nf < nof_frames || nof_frames == -1) && !go_exit) {
-    for (sf_idx = 0; sf_idx < SRSLTE_NSUBFRAMES_X_FRAME && (nf < nof_frames || nof_frames == -1); sf_idx++) {
+    for (sf_idx = (sfMode >=0) ? sfMode:0; sf_idx < SRSLTE_NSUBFRAMES_X_FRAME && (nf < nof_frames || nof_frames == -1) && !go_exit; sf_idx++) {
       bzero(sf_buffer, sizeof(cf_t) * sf_n_re);
 
       if (sf_idx == 0 || sf_idx == 5) {
@@ -574,70 +647,84 @@ int main(int argc, char **argv) {
 
       srslte_refsignal_cs_put_sf(cell, 0, est.csr_signal.pilots[0][sf_idx], sf_buffer);
 
-      srslte_pbch_mib_pack(&cell, sfn, bch_payload);
       if (sf_idx == 0) {
-        srslte_pbch_encode(&pbch, bch_payload, slot1_symbols);
+	  srslte_pbch_mib_pack(&cell, sfn, bch_payload);
+	  srslte_pbch_encode(&pbch, bch_payload, slot1_symbols);
       }
 
-      srslte_pcfich_encode(&pcfich, cfi, sf_symbols, sf_idx);       
+//      int absIndex = (nf * 10 + sf_idx) % 40;
 
-      /* Update DL resource allocation from control port */
-      if (update_control(sf_idx)) {
-        fprintf(stderr, "Error updating parameters from control port\n");
+//      int isAlmostBlankSubframe = absPattern[absIndex];
+      int isAlmostBlankSubframe = absPattern[sf_idx];
+
+      if(isAlmostBlankSubframe){
+	  /* Update DL resource allocation from control port */
+	  if (update_control(sf_idx)) {
+	      fprintf(stderr, "Error updating parameters from control port\n");
+	  }
+	  INFO("Transmitting ABS subframe\n",0);
       }
-      
-      /* Transmit PDCCH + PDSCH only when there is data to send */
-      if (net_port > 0) {
-        send_data = net_packet_ready; 
-        if (net_packet_ready) {
-          INFO("Transmitting packet\n",0);
-        }
-      } else {
-        INFO("SF: %d, Generating %d random bits\n", sf_idx, pdsch_cfg.grant.mcs.tbs);
-        for (i=0;i<pdsch_cfg.grant.mcs.tbs/8;i++) {
-          data[i] = rand()%256;
-        }
-        /* Uncomment this to transmit on sf 0 and 5 only  */
-        if (sf_idx != 0 && sf_idx != 5) {
-          send_data = true; 
-        } else {
-          send_data = false;           
-        }
-      }        
-      
-      if (send_data) {
-              
-        /* Encode PDCCH */
-        srslte_dci_msg_pack_pdsch(&ra_dl, &dci_msg, SRSLTE_DCI_FORMAT1, cell.nof_prb, false);
-        INFO("Putting DCI to location: n=%d, L=%d\n", locations[sf_idx][0].ncce, locations[sf_idx][0].L);
-        if (srslte_pdcch_encode(&pdcch, &dci_msg, locations[sf_idx][0], UE_CRNTI, sf_symbols, sf_idx, cfi)) {
-          fprintf(stderr, "Error encoding DCI message\n");
-          exit(-1);
-        }
+      else {
 
-        /* Configure pdsch_cfg parameters */
-        srslte_ra_dl_grant_t grant; 
-        srslte_ra_dl_dci_to_grant(&ra_dl, cell.nof_prb, true, &grant);        
-        if (srslte_pdsch_cfg(&pdsch_cfg, cell, &grant, cfi, sf_idx, 0)) {
-          fprintf(stderr, "Error configuring PDSCH\n");
-          exit(-1);
-        }
-       
-        /* Encode PDSCH */
-        if (srslte_pdsch_encode(&pdsch, &pdsch_cfg, &softbuffer, data, sf_symbols)) {
-          fprintf(stderr, "Error encoding PDSCH\n");
-          exit(-1);
-        }        
-        if (net_port > 0 && net_packet_ready) {
-          if (null_file_sink) {
-            srslte_bit_pack_vector(data, data_tmp, pdsch_cfg.grant.mcs.tbs);
-            if (srslte_netsink_write(&net_sink, data_tmp, 1+(pdsch_cfg.grant.mcs.tbs-1)/8) < 0) {
-              fprintf(stderr, "Error sending data through UDP socket\n");
-            }            
-          }
-          net_packet_ready = false; 
-          sem_post(&net_sem);
-        }
+	  srslte_pcfich_encode(&pcfich, cfi, sf_symbols, sf_idx);
+
+	  /* Update DL resource allocation from control port */
+	  if (update_control(sf_idx)) {
+	      fprintf(stderr, "Error updating parameters from control port\n");
+	  }
+	  /* Transmit PDCCH + PDSCH only when there is data to send */
+	  if (net_port > 0) {
+	      send_data = net_packet_ready;
+	      if (net_packet_ready) {
+		  INFO("Transmitting packet\n",0);
+	      }
+	  } else {
+	      INFO("SF: %d, Generating %d random bits\n", sf_idx, pdsch_cfg.grant.mcs.tbs);
+	      for (i=0;i<pdsch_cfg.grant.mcs.tbs/8;i++) {
+		  data[i] = rand()%256;
+	      }
+	      /* Uncomment this to transmit on sf 0 and 5 only  */
+	      if (sf_idx != 0 && sf_idx != 5) {
+		  send_data = true;
+	      } else {
+		  send_data = false;
+	      }
+	  }
+
+	  if (send_data) {
+
+	      /* Encode PDCCH */
+	      srslte_dci_msg_pack_pdsch(&ra_dl, &dci_msg, SRSLTE_DCI_FORMAT1, cell.nof_prb, false);
+	      INFO("Putting DCI to location: n=%d, L=%d\n", locations[sf_idx][0].ncce, locations[sf_idx][0].L);
+	      if (srslte_pdcch_encode(&pdcch, &dci_msg, locations[sf_idx][0], UE_CRNTI, sf_symbols, sf_idx, cfi)) {
+		  fprintf(stderr, "Error encoding DCI message\n");
+		  exit(-1);
+	      }
+
+	      /* Configure pdsch_cfg parameters */
+	      srslte_ra_dl_grant_t grant;
+	      srslte_ra_dl_dci_to_grant(&ra_dl, cell.nof_prb, true, &grant);
+	      if (srslte_pdsch_cfg(&pdsch_cfg, cell, &grant, cfi, sf_idx, 0)) {
+		  fprintf(stderr, "Error configuring PDSCH\n");
+		  exit(-1);
+	      }
+
+	      /* Encode PDSCH */
+	      if (srslte_pdsch_encode(&pdsch, &pdsch_cfg, &softbuffer, data, sf_symbols)) {
+		  fprintf(stderr, "Error encoding PDSCH\n");
+		  exit(-1);
+	      }
+	      if (net_port > 0 && net_packet_ready) {
+		  if (null_file_sink) {
+		      srslte_bit_pack_vector(data, data_tmp, pdsch_cfg.grant.mcs.tbs);
+		      if (srslte_netsink_write(&net_sink, data_tmp, 1+(pdsch_cfg.grant.mcs.tbs-1)/8) < 0) {
+			  fprintf(stderr, "Error sending data through UDP socket\n");
+		      }
+		  }
+		  net_packet_ready = false;
+		  sem_post(&net_sem);
+	      }
+	  }
       }
       
       /* Transform to OFDM symbols */
@@ -658,6 +745,8 @@ int main(int argc, char **argv) {
         start_of_burst=false; 
 #endif
       }
+    if(sfMode>=0)
+      sf_idx--;
     }
     nf++;
     sfn = (sfn + 1) % 1024;
