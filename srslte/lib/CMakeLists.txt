@@ -83,10 +83,6 @@ target_link_libraries(srslte pthread m)
 set_target_properties(srslte  PROPERTIES
                               VERSION ${SRSLTE_VERSION_MAJOR}.${SRSLTE_VERSION_MINOR})
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> 6fa983df3c19f49b7a3e009015aaa204745d22c3
 if(MKL_FOUND)
   target_link_libraries(srslte ${MKL_LIBRARIES})
   if(NOT DisableMEX)
@@ -98,17 +94,11 @@ else(MKL_FOUND)
     target_link_libraries(srslte_static ${FFTW3F_LIBRARIES})
   endif(NOT DisableMEX)
 endif(MKL_FOUND)
-
-<<<<<<< HEAD
-=======
 if(NOT DisableMEX)
   target_link_libraries(srslte_static ${FFTW3F_LIBRARIES})
 endif(NOT DisableMEX)
                               
                               
->>>>>>> 96237d74ad45bed22a1eb316e9386f089539c565
-=======
->>>>>>> 6fa983df3c19f49b7a3e009015aaa204745d22c3
 if(RF_FOUND)
   if(UHD_FOUND)
     target_link_libraries(srslte ${UHD_LIBRARIES})
@@ -117,6 +107,10 @@ if(RF_FOUND)
   if(BLADERF_FOUND)
     target_link_libraries(srslte ${BLADERF_LIBRARIES})
   endif(BLADERF_FOUND)
+
+  if(LIBIIO_FOUND)
+    target_link_libraries(srslte ${LIBIIO_LIBRARIES})
+  endif(LIBIIO_FOUND)
 endif(RF_FOUND)
 
 if(VOLK_FOUND)

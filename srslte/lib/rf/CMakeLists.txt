@@ -33,6 +33,11 @@ if(RF_FOUND)
     list(APPEND SOURCES_RF rf_blade_imp.c)
   endif (BLADERF_FOUND)
 
+  if (LIBIIO_FOUND)
+    add_definitions(-DENABLE_LIBIIO)
+    list(APPEND SOURCES_RF rf_zed_imp.c)
+  endif (LIBIIO_FOUND)
+  
   add_library(srslte_rf OBJECT ${SOURCES_RF})
   SRSLTE_SET_PIC(srslte_rf)
 endif(RF_FOUND)

@@ -1,27 +1,27 @@
-if(NOT ZED_FOUND)
-  pkg_check_modules (ZED_PKG libiio)
-  find_path(ZED_INCLUDE_DIRS NAMES iio.h
+if(NOT LIBIIO_FOUND)
+	pkg_check_modules (LIBIIO_PKG libiio)
+  find_path(LIBIIO_INCLUDE_DIRS NAMES iio.h
     PATHS
-    ${ZED_PKG_INCLUDE_DIRS}
+    ${LIBIIO_PKG_INCLUDE_DIRS}
     /usr/include
     /usr/local/include
   )
 
-  find_library(ZED_LIBRARIES NAMES libiio.so
+  find_library(LIBIIO_LIBRARIES NAMES libiio.so
     PATHS
-    ${ZED_PKG_LIBRARY_DIRS}
+    ${LIBIIO_PKG_LIBRARY_DIRS}
     /usr/lib
     /usr/local/lib
   )
 
-if(ZED_INCLUDE_DIRS AND ZED_LIBRARIES)
-  set(ZED_FOUND TRUE CACHE INTERNAL "libiio found")
-  message(STATUS "Found libiio: ${ZED_INCLUDE_DIRS}, ${ZED_LIBRARIES}")
-else(ZED_INCLUDE_DIRS AND ZED_LIBRARIES)
-  set(ZED_FOUND FALSE CACHE INTERNAL "libiio found")
+if(LIBIIO_INCLUDE_DIRS AND LIBIIO_LIBRARIES)
+  set(LIBIIO_FOUND TRUE CACHE INTERNAL "libiio found")
+  message(STATUS "Found libiio: ${LIBIIO_INCLUDE_DIRS}, ${LIBIIO_LIBRARIES}")
+else(LIBIIO_INCLUDE_DIRS AND LIBIIO_LIBRARIES)
+  set(LIBIIO_FOUND FALSE CACHE INTERNAL "libiio found")
   message(STATUS "libiio not found.")
-endif(ZED_INCLUDE_DIRS AND ZED_LIBRARIES)
+endif(LIBIIO_INCLUDE_DIRS AND LIBIIO_LIBRARIES)
 
-mark_as_advanced(ZED_LIBRARIES ZED_INCLUDE_DIRS)
+mark_as_advanced(LIBIIO_LIBRARIES LIBIIO_INCLUDE_DIRS)
 
-endif(NOT ZED_FOUND)
+endif(NOT LIBIIO_FOUND)
