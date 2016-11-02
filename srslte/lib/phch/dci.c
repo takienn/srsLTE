@@ -65,7 +65,7 @@ int srslte_dci_msg_to_dl_grant(srslte_dci_msg_t *msg, uint16_t msg_rnti,
     srslte_dci_format_t tmp = msg->format; 
     ret = srslte_dci_msg_unpack_pdsch(msg, dl_dci, nof_prb, nof_ports, crc_is_crnti);
     if (ret) {
-      fprintf(stderr, "Can't unpack DCI message %s (%d)\n", srslte_dci_format_string(tmp), ret);
+      fprintf(stderr, "Can't unpack DCI message %s (%d)\n", srslte_dci_format_string(tmp), tmp);
       return ret;
     } 
     
@@ -170,7 +170,7 @@ int srslte_dci_msg_to_ul_grant(srslte_dci_msg_t *msg, uint32_t nof_prb,
     ret = SRSLTE_ERROR;
     
     bzero(ul_dci, sizeof(srslte_ra_ul_dci_t));
-    bzero(grant, sizeof(srslte_ra_ul_dci_t));
+    bzero(grant, sizeof(srslte_ra_ul_grant_t));
     
     if (srslte_dci_msg_unpack_pusch(msg, ul_dci, nof_prb)) {
       return ret;
@@ -386,12 +386,13 @@ uint32_t srslte_dci_format_sizeof(srslte_dci_format_t format, uint32_t nof_prb, 
     return dci_format3A_sizeof(nof_prb);
     */
   default:
-    return SRSLTE_ERROR;
+    printf("Error computing DCI bits: Unknown format %d\n", format);
+    return 0;
   }
 }
 
 uint32_t srslte_dci_format_sizeof_lut(srslte_dci_format_t format, uint32_t nof_prb) {
-  if (nof_prb <= 100 && format < 11) {
+  if (nof_prb < 101 && format < 4) {
     return dci_sz_table[nof_prb][format];
   } else {
     return 0;
@@ -626,6 +627,7 @@ int dci_format1_unpack(srslte_dci_msg_t *msg, srslte_ra_dl_dci_t *data, uint32_t
   
   // TPC not implemented
   
+  data->nof_tb = 1; 
 
   return SRSLTE_SUCCESS;
 }
@@ -811,6 +813,8 @@ int dci_format1As_unpack(srslte_dci_msg_t *msg, srslte_ra_dl_dci_t *data, uint32
     y++; // MSB of TPC is reserved
     data->type2_alloc.n_prb1a = *y++; // LSB indicates N_prb_1a for TBS
   }
+  
+  data->nof_tb = 1; 
 
   return SRSLTE_SUCCESS;
 }
@@ -855,7 +859,8 @@ int dci_format1B_unpack(srslte_dci_msg_t *msg, srslte_ra_dl_dci_t *data, uint32_
   
   data->pinfo = srslte_bit_pack(&y, tpmi_bits(nof_ports));
   data->pconf = *y++ ? true : false;
-  
+
+  data->nof_tb = 1;   
 
   return SRSLTE_SUCCESS;
 }
@@ -944,9 +949,11 @@ int dci_format1Cs_unpack(srslte_dci_msg_t *msg, srslte_ra_dl_dci_t *data, uint32
 
   data->mcs_idx = srslte_bit_pack(&y, 5);
   
-  data->rv_idx = -1; // For SI-RNTI, get RV from TTI 
+  data->rv_idx = -1; // Get RV later
   
   msg->nof_bits = (y - msg->data);
+  
+  data->nof_tb = 1; 
 
   return SRSLTE_SUCCESS;
 }
@@ -992,6 +999,7 @@ int dci_format1D_unpack(srslte_dci_msg_t *msg, srslte_ra_dl_dci_t *data, uint32_
   data->pinfo = srslte_bit_pack(&y, tpmi_bits(nof_ports));
   data->power_offset = *y++ ? true : false;
   
+  data->nof_tb = 1; 
 
   return SRSLTE_SUCCESS;
 }
@@ -1058,6 +1066,8 @@ int dci_format2AB_unpack(srslte_dci_msg_t *msg, srslte_ra_dl_dci_t *data, uint32
   } else if (msg->format == SRSLTE_DCI_FORMAT2A) {
     data->pinfo = srslte_bit_pack(&y, precoding_bits_f2a(nof_ports));
   }
+  
+  data->nof_tb = 2; 
   
   return SRSLTE_SUCCESS;
 }

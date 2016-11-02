@@ -511,11 +511,11 @@ int main(int argc, char **argv) {
               n = srslte_ue_dl_decode_rnti_rv(&ue_dl, &sf_buffer[prog_args.time_offset], data, 
                                               srslte_ue_sync_get_sfidx(&ue_sync), 
                                               SRSLTE_SIRNTI, rv);      
-              
+
               /*
-              if (!n) {
+              if (n>0) {
                 printf("Saving signal...\n");
-                srslte_ue_dl_save_signal(&ue_dl, &ue_dl.softbuffer, sfn*10+srslte_ue_sync_get_sfidx(&ue_sync), rv);
+                srslte_ue_dl_save_signal(&ue_dl, &ue_dl.softbuffer, sfn*10+srslte_ue_sync_get_sfidx(&ue_sync), rv, prog_args.rnti);
                 exit(-1);
               }
               */
@@ -536,7 +536,7 @@ int main(int argc, char **argv) {
                   memcmp(&ue_dl.dl_dci.type2_alloc, &old_dl_dci.type2_alloc, sizeof(srslte_ra_type2_t)))
               {
                 memcpy(&old_dl_dci, &ue_dl.dl_dci, sizeof(srslte_ra_dl_dci_t));
-                fflush(stdout);printf("\nCFI:\t%d\n", ue_dl.cfi);
+                fflush(stdout);
                 printf("Format: %s\n", srslte_dci_format_string(ue_dl.dci_format));
                 srslte_ra_pdsch_fprint(stdout, &old_dl_dci, cell.nof_prb);
                 srslte_ra_dl_grant_fprint(stdout, &ue_dl.pdsch_cfg.grant);
@@ -702,14 +702,16 @@ void *plot_thread_run(void *arg) {
           tmp_plot[i] = -80;
         }
       }
+      int sz = srslte_symbol_sz(ue_dl.cell.nof_prb);
+      bzero(tmp_plot2, sizeof(float)*sz);
+      int g = (sz - 12*ue_dl.cell.nof_prb)/2;
       for (i = 0; i < 12*ue_dl.cell.nof_prb; i++) {
-        tmp_plot2[i] = 20 * log10f(cabsf(ue_dl.ce[0][i]));
-        if (isinf(tmp_plot2[i])) {
-          tmp_plot2[i] = -80;
+        tmp_plot2[g+i] = 20 * log10(cabs(ue_dl.ce[0][i]));
+        if (isinf(tmp_plot2[g+i])) {
+          tmp_plot2[g+i] = -80;
         }
       }
-
-      plot_real_setNewData(&pce, tmp_plot2, i);        
+      plot_real_setNewData(&pce, tmp_plot2, sz);        
       
       if (!prog_args.input_file_name) {
         if (plot_track) {

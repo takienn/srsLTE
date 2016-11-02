@@ -187,7 +187,7 @@ uint32_t srslte_pdcch_ue_locations_ncce(uint32_t nof_cce, srslte_dci_location_t 
   int l; // this must be int because of the for(;;--) loop
   uint32_t i, k, L, m; 
   uint32_t Yk, ncce;
-  const int S[4] = { 6, 12, 8, 16 };
+  const int M[4] = { 6, 6, 2, 2 };
 
   // Compute Yk for this subframe
   Yk = rnti;
@@ -200,21 +200,22 @@ uint32_t srslte_pdcch_ue_locations_ncce(uint32_t nof_cce, srslte_dci_location_t 
   for (l = 3; l >= 0; l--) {
     L = (1 << l);
     // For all possible ncce offset
-    for (i = 0; i < SRSLTE_MIN(nof_cce / L, S[l]/PDCCH_FORMAT_NOF_CCE(l)); i++) {
-      ncce = L * ((Yk + i) % (nof_cce / L));      
-      if (k                              < max_candidates     &&
-          ncce + PDCCH_FORMAT_NOF_CCE(l) <= nof_cce) 
-      {            
-        c[k].L = l;
-        c[k].ncce = ncce;
-        
-        DEBUG("UE-specific SS Candidate %d: nCCE: %d, L: %d\n",
-            k, c[k].ncce, c[k].L);            
+    for (i = 0; i < M[l]; i++) {
+      if (nof_cce > L) {
+        ncce = L * ((Yk + i) % (nof_cce / L));      
+        if (k < max_candidates  && ncce + L <= nof_cce) 
+        {            
+          c[k].L = l;
+          c[k].ncce = ncce;
+          
+          DEBUG("UE-specific SS Candidate %d: nCCE: %d, L: %d\n",
+              k, c[k].ncce, c[k].L);            
 
-        k++;          
-      } 
+          k++;          
+        } 
+      }
     }
-  }
+  }    
 
   DEBUG("Initiated %d candidate(s) in the UE-specific search space for C-RNTI: 0x%x\n", k, rnti);
   
@@ -239,17 +240,22 @@ uint32_t srslte_pdcch_common_locations(srslte_pdcch_t *q, srslte_dci_location_t 
 uint32_t srslte_pdcch_common_locations_ncce(uint32_t nof_cce, srslte_dci_location_t *c, uint32_t max_candidates) 
 {
   uint32_t i, l, L, k;
-
+  const int M[4] = { 0, 0, 4, 2 };
+  
   k = 0;
   for (l = 3; l > 1; l--) {
     L = (1 << l);
-    for (i = 0; i < SRSLTE_MIN(nof_cce, 16) / (L); i++) {
-      if (k < max_candidates) {
-        c[k].L = l;
-        c[k].ncce = (L) * (i % (nof_cce / (L)));
-        DEBUG("Common SS Candidate %d: nCCE: %d, L: %d\n",
-            k, c[k].ncce, c[k].L);
-        k++;          
+    for (i = 0; i < M[l]; i++) {
+      if (nof_cce > L) {
+        uint32_t ncce = L * (i % (nof_cce / L));
+        if (k < max_candidates  && ncce + L <= nof_cce) 
+        {  
+          c[k].L = l;
+          c[k].ncce = ncce; 
+          DEBUG("Common SS Candidate %d: nCCE: %d, L: %d\n",
+              k, c[k].ncce, c[k].L);
+          k++;          
+        }
       }
     }
   }
@@ -275,33 +281,36 @@ int srslte_pdcch_dci_decode(srslte_pdcch_t *q, float *e, uint8_t *data, uint32_t
   uint16_t p_bits, crc_res;
   uint8_t *x;
 
-  if (q         != NULL         &&
-      data      != NULL         &&
-      E         <= q->max_bits   && 
-      nof_bits  <= SRSLTE_DCI_MAX_BITS)
-  {
-    bzero(q->rm_f, sizeof(float)*3 * (SRSLTE_DCI_MAX_BITS + 16));
-    
-    uint32_t coded_len = 3 * (nof_bits + 16); 
-    
-    /* unrate matching */
-    srslte_rm_conv_rx(e, E, q->rm_f, coded_len);
-    
-    /* viterbi decoder */
-    srslte_viterbi_decode_f(&q->decoder, q->rm_f, data, nof_bits + 16);
+  if (q           != NULL) {
+    if (data      != NULL         &&
+        E         <= q->max_bits   && 
+        nof_bits  <= SRSLTE_DCI_MAX_BITS)
+    {
+      bzero(q->rm_f, sizeof(float)*3 * (SRSLTE_DCI_MAX_BITS + 16));
+      
+      uint32_t coded_len = 3 * (nof_bits + 16); 
+      
+      /* unrate matching */
+      srslte_rm_conv_rx(e, E, q->rm_f, coded_len);
+      
+      /* viterbi decoder */
+      srslte_viterbi_decode_f(&q->decoder, q->rm_f, data, nof_bits + 16);
 
-    x = &data[nof_bits];
-    p_bits = (uint16_t) srslte_bit_pack(&x, 16);
-    crc_res = ((uint16_t) srslte_crc_checksum(&q->crc, data, nof_bits) & 0xffff);
-    
-    if (crc) {
-      *crc = p_bits ^ crc_res; 
+      x = &data[nof_bits];
+      p_bits = (uint16_t) srslte_bit_pack(&x, 16);
+      crc_res = ((uint16_t) srslte_crc_checksum(&q->crc, data, nof_bits) & 0xffff);
+      
+      if (crc) {
+        *crc = p_bits ^ crc_res; 
+      }
+          
+      return SRSLTE_SUCCESS;
+    } else {
+      fprintf(stderr, "Invalid parameters: E: %d, max_bits: %d, nof_bits: %d\n", E, q->max_bits, nof_bits);
+      return SRSLTE_ERROR_INVALID_INPUTS;      
     }
-        
-    return SRSLTE_SUCCESS;
   } else {
-    fprintf(stderr, "Invalid parameters: E: %d, max_bits: %d, nof_bits: %d\n", E, q->max_bits, nof_bits);
-    return SRSLTE_ERROR_INVALID_INPUTS;
+    return SRSLTE_ERROR_INVALID_INPUTS;          
   }
 }
 
@@ -319,14 +328,15 @@ int srslte_pdcch_decode_msg(srslte_pdcch_t *q,
   int ret = SRSLTE_ERROR_INVALID_INPUTS;
   if (q                 != NULL       && 
       msg               != NULL       && 
-      srslte_dci_location_isvalid(location)  &&
-      crc_rem           != NULL)
+      srslte_dci_location_isvalid(location))
   {
     if (location->ncce * 72 + PDCCH_FORMAT_NOF_BITS(location->L) > 
       q->nof_cce*72) {
       fprintf(stderr, "Invalid location: nCCE: %d, L: %d, NofCCE: %d\n", 
         location->ncce, location->L, q->nof_cce);
     } else {
+      ret = SRSLTE_SUCCESS;
+      
       uint32_t nof_bits = srslte_dci_format_sizeof_lut(format, q->cell.nof_prb);
       uint32_t e_bits = PDCCH_FORMAT_NOF_BITS(location->L);
     
@@ -346,17 +356,20 @@ int srslte_pdcch_decode_msg(srslte_pdcch_t *q,
           } else {
             msg->format   = format; 
           }
-        } 
+        } else {
+          fprintf(stderr, "Error calling pdcch_dci_decode\n");
+        }
         if (crc_rem) {
           DEBUG("Decoded DCI: nCCE=%d, L=%d, format=%s, msg_len=%d, mean=%f, crc_rem=0x%x\n", 
             location->ncce, location->L, srslte_dci_format_string(format), nof_bits, mean, *crc_rem);
         }
       } else {
         DEBUG("Skipping DCI:  nCCE=%d, L=%d, msg_len=%d, mean=%f\n",
-              location->ncce, location->L, nof_bits, mean);
-        ret = SRSLTE_SUCCESS;
+              location->ncce, location->L, nof_bits, mean);        
       }
     }
+  } else {
+    fprintf(stderr, "Invalid parameters, location=%d,%d\n", location->ncce, location->L);
   }
   return ret;
 }
@@ -525,7 +538,7 @@ int srslte_pdcch_encode(srslte_pdcch_t *q, srslte_dci_msg_t *msg, srslte_dci_loc
     ret = SRSLTE_ERROR;
     
     if (location.ncce + PDCCH_FORMAT_NOF_CCE(location.L) <= q->nof_cce && 
-        msg->nof_bits < SRSLTE_DCI_MAX_BITS) 
+        msg->nof_bits < SRSLTE_DCI_MAX_BITS - 16) 
     {      
       DEBUG("Encoding DCI: Nbits: %d, E: %d, nCCE: %d, L: %d, RNTI: 0x%x\n",
           msg->nof_bits, e_bits, location.ncce, location.L, rnti);
