@@ -62,6 +62,13 @@ The library can also be installed using the command ```sudo make install```.
 
 Running srsLTE Examples
 ========================
+* PDSCH ENODEB with ABS pattern
+<code> lte/examples/pdsch_enodeb -z ABS_MODE(0, 1 or 5)
+</code>
+Or you can specify an ABS pattern (0/1=NOT-ABS/ABS for each subframe)
+<code>
+lte/examples/pdsch_enodeb -d XXXXXXXXXX
+</code>
 
 * SIB1 reception and UE measurement from commercial LTE networks: 
 ```
