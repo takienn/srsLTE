@@ -100,9 +100,6 @@ if(NOT DisableMEX)
 endif(NOT DisableMEX)
                               
                               
->>>>>>> 96237d74ad45bed22a1eb316e9386f089539c565
-=======
->>>>>>> 6fa983df3c19f49b7a3e009015aaa204745d22c3
 if(RF_FOUND)
   if(UHD_FOUND)
     target_link_libraries(srslte ${UHD_LIBRARIES})
