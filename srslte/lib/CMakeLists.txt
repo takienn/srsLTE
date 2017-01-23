@@ -83,10 +83,6 @@ target_link_libraries(srslte pthread m)
 set_target_properties(srslte  PROPERTIES
                               VERSION ${SRSLTE_VERSION_MAJOR}.${SRSLTE_VERSION_MINOR})
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> 6fa983df3c19f49b7a3e009015aaa204745d22c3
 if(MKL_FOUND)
   target_link_libraries(srslte ${MKL_LIBRARIES})
   if(NOT DisableMEX)
@@ -99,8 +95,6 @@ else(MKL_FOUND)
   endif(NOT DisableMEX)
 endif(MKL_FOUND)
 
-<<<<<<< HEAD
-=======
 if(NOT DisableMEX)
   target_link_libraries(srslte_static ${FFTW3F_LIBRARIES})
 endif(NOT DisableMEX)
