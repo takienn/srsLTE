@@ -657,6 +657,8 @@ int main(int argc, char **argv) {
 
 //      int isAlmostBlankSubframe = absPattern[absIndex];
       int isAlmostBlankSubframe = absPattern[sf_idx];
+      if(sfMode>=0)
+	isAlmostBlankSubframe=1;
 
       if(isAlmostBlankSubframe){
 	  /* Update DL resource allocation from control port */
