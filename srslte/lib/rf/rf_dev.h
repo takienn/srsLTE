@@ -130,6 +130,41 @@ static rf_dev_t dev_blade = {
 };
 #endif
 
+/* Define implementation for ZedBoard */
+#ifdef ENABLE_LIBIIO
+
+#include "rf_zed_imp.h"
+
+static rf_dev_t dev_zed = {
+  "ZED",
+  rf_zed_rx_wait_lo_locked,
+  rf_zed_start_rx_stream,
+  rf_zed_stop_rx_stream,
+  rf_zed_flush_buffer,
+  rf_zed_has_rssi,
+  rf_zed_get_rssi,
+  rf_zed_suppress_stdout,
+  rf_zed_register_error_handler,
+  rf_zed_open,
+  rf_zed_close,
+  rf_zed_set_master_clock_rate,
+  rf_zed_is_master_clock_dynamic,
+  rf_zed_set_rx_srate,
+  rf_zed_set_rx_gain,
+  rf_zed_set_tx_gain,
+  rf_zed_get_rx_gain,
+  rf_zed_get_tx_gain,
+  rf_zed_set_rx_freq,
+  rf_zed_set_tx_srate,
+  rf_zed_set_tx_freq,
+  rf_zed_get_time,
+  rf_zed_recv_with_time,
+  rf_zed_send_timed,
+  rf_zed_set_tx_cal,
+  rf_zed_set_rx_cal
+};
+#endif
+
 //#define ENABLE_DUMMY_DEV
 
 #ifdef ENABLE_DUMMY_DEV
@@ -177,6 +212,9 @@ static rf_dev_t *available_devices[] = {
 #endif
 #ifdef ENABLE_BLADERF
   &dev_blade,  
+#endif
+#ifdef ENABLE_LIBIIO
+  &dev_zed,
 #endif
 #ifdef ENABLE_DUMMY_DEV
   &dev_dummy,
