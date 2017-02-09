@@ -51,7 +51,6 @@ typedef struct {
   struct iio_buffer *Txbuf, *Rxbuf;
 
   unsigned int num_buffers;
-  unsigned int buffer_size;
   unsigned int num_transfers;
   unsigned int rx_timeout_ms;
   unsigned int tx_timeout_ms;
@@ -148,11 +147,11 @@ int rf_zed_open(char *args, void **h)
 
     // Allow NULL parameter
     if (args == NULL) {
-      args = "192.168.1.10";
+      args = "192.168.10.221";
     }
     /* If device IP Address not given in args, choose a default one */
     if (args[0]=='\0') {
-	args = "192.168.1.10";
+	args = "192.168.10.221";
     }
     /* Create UHD handler */
     printf("Opening IIO Zedboard with args: %s\n", args);
@@ -267,73 +266,61 @@ bool rf_zed_is_master_clock_dynamic(void *h) {
   return 1;
 }
 
-double rf_zed_set_rx_srate(void *h, double freq)
+double rf_zed_set_rx_srate(void *h, double srate)
 {
   rf_zed_handler_t *handler = (rf_zed_handler_t*) h;
   const char *attr = NULL;
   int ret = iio_device_identify_filename(handler->phy, "in_voltage_sampling_frequency", &handler->phych0, &attr);
-  ret = iio_channel_attr_write_double(handler->phych0, attr, freq);
+  ret = iio_channel_attr_write_double(handler->phych0, attr, srate);
   if (ret < 0)
     {
       fprintf(stderr, "Unable to set samplerate (%i)\n", ret);
+      rf_zed_close(h);
       exit(1);
     }
 
-  if(freq == (double)1500 * 1536)
-    handler->rx_nof_samples  = 2048;
-  if(freq == (double) 1500 * 768)
-    handler->rx_nof_samples  = 2048;
-  if(freq == (double) 1500 * 384)
-    handler->rx_nof_samples  = 1024;
-  if(freq == (double) 1500 * 128)
-    handler->rx_nof_samples  = 256;
+  handler->rx_nof_samples  = srate/1000;
 
-  handler->buffer_size = handler->rx_nof_samples * sizeof(int32_t);
-  handler->Rxbuf = iio_device_create_buffer(handler->rxdev, handler->buffer_size, false);
+  handler->Rxbuf = iio_device_create_buffer(handler->rxdev, handler->rx_nof_samples, false);
 
 
   if (!handler->Rxbuf)
     {
 	fprintf(stderr, "Unable to create rx buffer\n");
+	rf_zed_close(h);
 	exit(1);
     }
 
-  return freq;
+  return srate;
 }
 
-double rf_zed_set_tx_srate(void *h, double freq)
+double rf_zed_set_tx_srate(void *h, double srate)
 {
   rf_zed_handler_t *handler = (rf_zed_handler_t*) h;
   const char *attr = NULL;
   int ret = iio_device_identify_filename(handler->phy, "out_voltage_sampling_frequency", &handler->phych0, &attr);
-  ret = iio_channel_attr_write_double(handler->phych0, attr, freq);
+  ret = iio_channel_attr_write_double(handler->phych0, attr, srate);
   if (ret < 0)
   {
       fprintf(stderr, "Unable to set samplerate (%i)\n", ret);
+      rf_zed_close(h);
       exit(1);
   }
-  handler->tx_rate = freq;
+  handler->tx_rate = srate;
 
-  if((long long)freq == 23040000)
-    handler->tx_nof_samples  = 2048;
-  if((long long)freq == 11520000)
-    handler->tx_nof_samples  = 2048;
-  if((long long)freq == 5760000)
-    handler->tx_nof_samples  = 1024;
-  if((long long)freq == 1920000)
-    handler->tx_nof_samples  = 256;
+  handler->tx_nof_samples  = srate/1000;
 
-  handler->buffer_size = handler->tx_nof_samples * sizeof(int32_t);
-  handler->Txbuf = iio_device_create_buffer(handler->txdev, handler->buffer_size, false);
+  handler->Txbuf = iio_device_create_buffer(handler->txdev, handler->tx_nof_samples, false);
 
 
   if (!handler->Txbuf)
     {
 	fprintf(stderr, "Unable to create tx buffer\n");
+	rf_zed_close(h);
 	exit(1);
     }
 
-  return freq;
+  return srate;
 }
 
 double rf_zed_set_rx_gain(void *h, double gain)
@@ -345,6 +332,7 @@ double rf_zed_set_rx_gain(void *h, double gain)
   if (ret < 0)
     {
       fprintf(stderr, "Unable to set rx gain (%i)\n", ret);
+      rf_zed_close(h);
       exit(1);
     }
   return gain;
@@ -359,6 +347,7 @@ double rf_zed_set_tx_gain(void *h, double gain)
   if (ret < 0)
     {
       fprintf(stderr, "Unable to set tx attenuation (%i)\n", ret);
+      rf_zed_close(h);
       exit(1);
     }
   return gain;
@@ -374,6 +363,7 @@ double rf_zed_get_rx_gain(void *h)
   if (ret < 0)
     {
       fprintf(stderr, "Unable to read rx gain (%i)\n", ret);
+      rf_zed_close(h);
       exit(1);
     }
 
@@ -390,6 +380,7 @@ double rf_zed_get_tx_gain(void *h)
   if (ret < 0)
     {
       fprintf(stderr, "Unable to read tx attenuation (%i)\n", ret);
+      rf_zed_close(h);
       exit(1);
     }
 
@@ -405,8 +396,21 @@ double rf_zed_set_rx_freq(void *h, double freq)
   if (ret < 0)
     {
       fprintf(stderr, "Unable to set LO frequency (%i)\n", ret);
+      rf_zed_close(h);
       exit(1);
     }
+
+  // Asking back the device to read configured frequency
+  long long freq_dev = 0;
+  ret = iio_channel_attr_read_longlong(handler->phych0, attr, &freq_dev);
+  if (ret < 0)
+    {
+      fprintf(stderr, "Unable to read LO frequency (%i)\n", ret);
+      rf_zed_close(h);
+      exit(1);
+    }
+  freq = (double)freq_dev;
+
   return freq;
 }
 
@@ -419,8 +423,20 @@ double rf_zed_set_tx_freq(void *h, double freq)
   if (ret < 0)
     {
       fprintf(stderr, "Unable to set LO frequency (%i)\n", ret);
+      rf_zed_close(h);
       exit(1);
     }
+
+  // Asking back the device to read configured frequency
+  long long freq_dev = 0;
+  ret = iio_channel_attr_read_longlong(handler->phych0, attr, &freq_dev);
+  if (ret < 0)
+    {
+      fprintf(stderr, "Unable to read LO frequency (%i)\n", ret);
+      rf_zed_close(h);
+      exit(1);
+    }
+  freq = (double)freq_dev;
   return freq;
 }
 
@@ -438,7 +454,14 @@ int rf_zed_recv_with_time(void *h,
 
   rf_zed_handler_t *handler = (rf_zed_handler_t*) h;
   int ret = iio_buffer_refill(handler->Rxbuf);
+  struct timespec ts;
+  clock_gettime(CLOCK_REALTIME, &ts);
+  *secs = ts.tv_sec;
+  *frac_secs = (double)ts.tv_nsec; //Double check the validity of this type-casting
+
   if (ret < 0){
+      fprintf(stderr, "iio_buffer_refill failed\n");
+      rf_zed_close(h);
       exit(1);
   }
 
@@ -500,9 +523,18 @@ int rf_zed_send_timed(void *h,
       samples = (int32_t *)samples + 1;
     }
 
+  if (i < nsamples){
+      fprintf(stderr, "rf_zed_send_timed failed, transmitted %d samples which is less than %d samples\n", i, nsamples);
+      rf_zed_close(h);
+      exit(1);
+  }
+
   int ret = iio_buffer_push(handler->Txbuf);
-  if (ret < 0)
+  if (ret < 0) {
+    fprintf(stderr, "iio_buffer_push failed\n");
+    rf_zed_close(h);
     exit(1);
+  }
   return ret;
 }
 
