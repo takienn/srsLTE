@@ -134,7 +134,7 @@ void usage(char *prog) {
   printf("\t-c cell id [Default %d]\n", cell.id);
   printf("\t-p nof_prb [Default %d]\n", cell.nof_prb);
   printf("\t-u listen TCP port for input data (-1 is random) [Default %d]\n", net_port);
-  printf("\t-d specify a duty cycle patter in 40bits\n");
+  printf("\t-d specify a duty cycle pattern in 10bits\n");
   printf("\t-z specify the ABS transmission mode (sf 0, sf 1 or sf 5. default is normal)\n");
   printf("\t-v [set srslte_verbose to debug, default none]\n");
 }
@@ -657,6 +657,8 @@ int main(int argc, char **argv) {
 
 //      int isAlmostBlankSubframe = absPattern[absIndex];
       int isAlmostBlankSubframe = absPattern[sf_idx];
+      if(sfMode>=0)
+	isAlmostBlankSubframe=1;
 
       if(isAlmostBlankSubframe || sfMode >=0){
 	  /* Update DL resource allocation from control port */
