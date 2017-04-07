@@ -231,7 +231,7 @@ void base_init() {
   /* open file or USRP */
   if (output_file_name) {
     if (strcmp(output_file_name, "NULL")) {
-      if (srslte_filesink_init(&fsink, output_file_name, SRSLTE_COMPLEX_FLOAT)) {
+      if (srslte_filesink_init(&fsink, output_file_name, SRSLTE_COMPLEX_FLOAT_BIN)) {
         fprintf(stderr, "Error opening file %s\n", output_file_name);
         exit(-1);
       }      
@@ -637,10 +637,10 @@ int main(int argc, char **argv) {
 
 
   while ((nf < nof_frames || nof_frames == -1) && !go_exit) {
-    for (sf_idx = (sfMode >=0) ? sfMode:0; sf_idx < SRSLTE_NSUBFRAMES_X_FRAME && (nf < nof_frames || nof_frames == -1) && !go_exit; sf_idx++) {
+    for (sf_idx = 0; sf_idx < SRSLTE_NSUBFRAMES_X_FRAME && (nf < nof_frames || nof_frames == -1) && !go_exit; sf_idx++) {
       bzero(sf_buffer, sizeof(cf_t) * sf_n_re);
 
-      if (sf_idx == 0 || sf_idx == 5) {
+      if ((sf_idx == 0 && sfMode < 0) || (sf_idx == 5 && sfMode < 0) || sfMode == 0 || sfMode == 5) {
         srslte_pss_put_slot(pss_signal, sf_buffer, cell.nof_prb, SRSLTE_CP_NORM);
         srslte_sss_put_slot(sf_idx ? sss_signal5 : sss_signal0, sf_buffer, cell.nof_prb,
             SRSLTE_CP_NORM);
@@ -648,7 +648,7 @@ int main(int argc, char **argv) {
 
       srslte_refsignal_cs_put_sf(cell, 0, est.csr_signal.pilots[0][sf_idx], sf_buffer);
 
-      if (sf_idx == 0) {
+      if (sf_idx == 0 && sfMode <=0) {
 	  srslte_pbch_mib_pack(&cell, sfn, bch_payload);
 	  srslte_pbch_encode(&pbch, bch_payload, slot1_symbols);
       }
@@ -658,7 +658,7 @@ int main(int argc, char **argv) {
 //      int isAlmostBlankSubframe = absPattern[absIndex];
       int isAlmostBlankSubframe = absPattern[sf_idx];
 
-      if(isAlmostBlankSubframe){
+      if(isAlmostBlankSubframe || sfMode >=0){
 	  /* Update DL resource allocation from control port */
 	  if (update_control(sf_idx)) {
 	      fprintf(stderr, "Error updating parameters from control port\n");
@@ -746,8 +746,8 @@ int main(int argc, char **argv) {
         start_of_burst=false; 
 #endif
       }
-    if(sfMode>=0)
-      sf_idx--;
+//    if(sfMode>=0)
+//      sf_idx--;
     }
     nf++;
     sfn = (sfn + 1) % 1024;
